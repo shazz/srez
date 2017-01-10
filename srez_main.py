@@ -7,10 +7,12 @@ import os.path
 import random
 import numpy as np
 import numpy.random
+import scipy.misc
 
 import tensorflow as tf
 
 FLAGS = tf.app.flags.FLAGS
+
 
 # Configuration (alphabetically)
 tf.app.flags.DEFINE_integer('batch_size', 16,
@@ -19,7 +21,7 @@ tf.app.flags.DEFINE_integer('batch_size', 16,
 tf.app.flags.DEFINE_string('checkpoint_dir', 'checkpoint',
                            "Output folder where checkpoints are dumped.")
 
-tf.app.flags.DEFINE_integer('checkpoint_period', 10000,
+tf.app.flags.DEFINE_integer('checkpoint_period', 1000,
                             "Number of batches in between checkpoints")
 
 tf.app.flags.DEFINE_string('dataset', 'dataset',
@@ -49,7 +51,7 @@ tf.app.flags.DEFINE_bool('log_device_placement', False,
 tf.app.flags.DEFINE_integer('sample_size', 64,
                             "Image sample size in pixels. Range [64,128]")
 
-tf.app.flags.DEFINE_integer('summary_period', 200,
+tf.app.flags.DEFINE_integer('summary_period', 10,
                             "Number of batches between summary data dumps")
 
 tf.app.flags.DEFINE_integer('random_seed', 0,
@@ -61,7 +63,7 @@ tf.app.flags.DEFINE_integer('test_vectors', 16,
 tf.app.flags.DEFINE_string('train_dir', 'train',
                            "Output folder where training logs are dumped.")
 
-tf.app.flags.DEFINE_integer('train_time', 20,
+tf.app.flags.DEFINE_integer('train_time', 60*9,
                             "Time in minutes to train the model")
 
 def prepare_dirs(delete_train_dir=False):
@@ -100,7 +102,7 @@ def setup_tensorflow():
     random.seed(FLAGS.random_seed)
     np.random.seed(FLAGS.random_seed)
 
-    summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, sess.graph)
+    summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
 
     return sess, summary_writer
 
@@ -132,6 +134,52 @@ def _demo():
 
     # Execute demo
     srez_demo.demo1(sess)
+
+def _infere():
+    # Load checkpoint
+    if not tf.gfile.IsDirectory(FLAGS.checkpoint_dir):
+        raise FileNotFoundError("Could not find folder `%s'" % (FLAGS.checkpoint_dir,))
+
+    # Setup global tensorflow state
+    sess, summary_writer = setup_tensorflow()
+
+    # Setup async input queues
+    filenames = ["test.jpg"]
+    features, labels = srez_input.setup_inputs(sess, filenames)
+
+    # Create and initialize model
+    [gene_minput, gene_moutput,
+     gene_output, gene_var_list,
+     disc_real_output, disc_fake_output, disc_var_list] = \
+            srez_model.create_model(sess, features, labels)
+
+    # Restore variables from checkpoint
+    saver = tf.train.Saver()
+    filename = os.path.join(FLAGS.checkpoint_dir, 'checkpoint_new.txt')
+    saver.restore(sess, filename)
+
+    # Infere on an image
+    feature, label = sess.run([features, labels])
+    feed_dict = {gene_minput: feature}
+    gene_output = sess.run(gene_moutput, feed_dict=feed_dict)
+
+    size = [label.shape[1], label.shape[2]]
+
+    nearest = tf.image.resize_nearest_neighbor(feature, size)
+    nearest = tf.maximum(tf.minimum(nearest, 1.0), 0.0)
+
+    bicubic = tf.image.resize_bicubic(feature, size)
+    bicubic = tf.maximum(tf.minimum(bicubic, 1.0), 0.0)
+
+    clipped = tf.maximum(tf.minimum(gene_output, 1.0), 0.0)
+
+    image   = tf.concat(2, [nearest, bicubic, clipped, label])
+    image   = tf.concat(0, [image[0,:,:,:]])
+
+    image = sess.run(image)
+
+    scipy.misc.toimage(image, cmin=0., cmax=1.).save('result.png')
+    print("    Saved result")
 
 class TrainData(object):
     def __init__(self, dictionary):
@@ -179,12 +227,15 @@ def _train():
     srez_train.train_model(train_data)
 
 def main(argv=None):
+
     # Training or showing off?
 
     if FLAGS.run == 'demo':
         _demo()
     elif FLAGS.run == 'train':
         _train()
+    elif FLAGS.run == 'infere':
+        _infere()
 
 if __name__ == '__main__':
   tf.app.run()
