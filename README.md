@@ -27,6 +27,7 @@ You will need Python 3 with Tensorflow, numpy, scipy and [moviepy](http://zulko.
 ## Dataset
 
 After you have the required software above you will also need the `Large-scale CelebFaces Attributes (CelebA) Dataset`. The model expects the `Align&Cropped Images` version. Extract all images to a subfolder named `dataset`. I.e. `srez/dataset/lotsoffiles.jpg`.
+You can find this archive at this URL: https://drive.google.com/drive/folders/0B7EVK8r0v71pTUZsaXdaSnZBZzg (img_align_celeba.zip, 1GB)
 
 # Training the model
 
@@ -34,6 +35,11 @@ Training with default settings: `python3 srez_main.py --run train`. The script w
 
 After the network has trained you can also produce an animation showing the evolution of the output by running `python3 srez_main.py --run demo`.
 
-# About the author
+# Using the model
+
+After a successful training, you can use the model with your own image by running `python3 srez_main.py --run infere`.
+Your image should be in the project root directory and called "test.jpg". A "result.png" image will be generated.
+
+# About the original author
 
 [LinkedIn profile of David Garcia](https://ca.linkedin.com/in/david-garcia-70913311).
