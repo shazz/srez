@@ -2,6 +2,7 @@ import srez_demo
 import srez_input
 import srez_model
 import srez_train
+import srez_infere
 
 import os.path
 import random
@@ -63,14 +64,31 @@ tf.app.flags.DEFINE_integer('test_vectors', 16,
 tf.app.flags.DEFINE_string('train_dir', 'train',
                            "Output folder where training logs are dumped.")
 
-tf.app.flags.DEFINE_integer('train_time', 60*9,
+tf.app.flags.DEFINE_integer('train_time', 1,
                             "Time in minutes to train the model")
+
+tf.app.flags.DEFINE_string('source_dir', 'img_source',
+                           "Input folder where the source images are located.")
+
+tf.app.flags.DEFINE_string('result_dir', 'img_result',
+                           "Output folder where the computed images are stored.")
+
+tf.app.flags.DEFINE_string('model_dir', 'model',
+                           "Output folder where the graph is stored.")
 
 def prepare_dirs(delete_train_dir=False):
     # Create checkpoint dir (do not delete anything)
     if not tf.gfile.Exists(FLAGS.checkpoint_dir):
         tf.gfile.MakeDirs(FLAGS.checkpoint_dir)
     
+    # Create source dir (do not delete anything)
+    if not tf.gfile.Exists(FLAGS.source_dir):
+        tf.gfile.MakeDirs(FLAGS.source_dir)
+
+    # Create result dir (do not delete anything)
+    if not tf.gfile.Exists(FLAGS.result_dir):
+        tf.gfile.MakeDirs(FLAGS.result_dir)
+
     # Cleanup train dir
     if delete_train_dir:
         if tf.gfile.Exists(FLAGS.train_dir):
@@ -135,7 +153,7 @@ def _demo():
     # Execute demo
     srez_demo.demo1(sess)
 
-def _infere():
+def _infere(use_dataset):
     # Load checkpoint
     if not tf.gfile.IsDirectory(FLAGS.checkpoint_dir):
         raise FileNotFoundError("Could not find folder `%s'" % (FLAGS.checkpoint_dir,))
@@ -143,43 +161,10 @@ def _infere():
     # Setup global tensorflow state
     sess, summary_writer = setup_tensorflow()
 
-    # Setup async input queues
-    filenames = ["test.jpg"]
-    features, labels = srez_input.setup_inputs(sess, filenames)
-
-    # Create and initialize model
-    [gene_minput, gene_moutput,
-     gene_output, gene_var_list,
-     disc_real_output, disc_fake_output, disc_var_list] = \
-            srez_model.create_model(sess, features, labels)
-
-    # Restore variables from checkpoint
-    saver = tf.train.Saver()
-    filename = os.path.join(FLAGS.checkpoint_dir, 'checkpoint_new.txt')
-    saver.restore(sess, filename)
-
-    # Infere on an image
-    feature, label = sess.run([features, labels])
-    feed_dict = {gene_minput: feature}
-    gene_output = sess.run(gene_moutput, feed_dict=feed_dict)
-
-    size = [label.shape[1], label.shape[2]]
-
-    nearest = tf.image.resize_nearest_neighbor(feature, size)
-    nearest = tf.maximum(tf.minimum(nearest, 1.0), 0.0)
-
-    bicubic = tf.image.resize_bicubic(feature, size)
-    bicubic = tf.maximum(tf.minimum(bicubic, 1.0), 0.0)
-
-    clipped = tf.maximum(tf.minimum(gene_output, 1.0), 0.0)
-
-    image   = tf.concat(2, [nearest, bicubic, clipped, label])
-    image   = tf.concat(0, [image[0,:,:,:]])
-
-    image = sess.run(image)
-
-    scipy.misc.toimage(image, cmin=0., cmax=1.).save('result.png')
-    print("    Saved result")
+    if use_dataset:
+        srez_infere.retro_infere(sess)
+    else:
+        srez_infere.infere(sess)
 
 class TrainData(object):
     def __init__(self, dictionary):
@@ -212,6 +197,7 @@ def _train():
      gene_output, gene_var_list,
      disc_real_output, disc_fake_output, disc_var_list] = \
             srez_model.create_model(sess, noisy_train_features, train_labels)
+    tf.convert_to_tensor(gene_moutput, name="gene_moutput")
 
     gene_loss = srez_model.create_generator_loss(disc_fake_output, gene_output, train_features)
     disc_real_loss, disc_fake_loss = \
@@ -235,7 +221,9 @@ def main(argv=None):
     elif FLAGS.run == 'train':
         _train()
     elif FLAGS.run == 'infere':
-        _infere()
+        _infere(False)
+    elif FLAGS.run == 'check':
+        _infere(True)
 
 if __name__ == '__main__':
   tf.app.run()
