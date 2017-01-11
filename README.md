@@ -8,8 +8,6 @@ Here's an random, non cherry-picked, example of what this network can do. From l
 
 As you can see, the network is able to produce a very plausible reconstruction of the original face. As the dataset is mainly composed of well-illuminated faces looking straight ahead, the reconstruction is poorer when the face is at an angle, poorly illuminated, or partially occluded by eyeglasses or hands.
 
-This particular example was produced after training the network for 3 hours on a GTX 1080 GPU, equivalent to 130,000 batches or about 10 epochs.
-
 # How it works
 
 In essence the architecture is a DCGAN where the input to the generator network is the 16x16 image rather than a multinomial gaussian distribution.
@@ -34,6 +32,17 @@ You can find this archive at this URL: https://drive.google.com/drive/folders/0B
 Training with default settings: `python3 srez_main.py --run train`. The script will periodically output an example batch in PNG format onto the `srez/train` folder, and checkpoint data will be stored in the `srez/checkpoint` folder.
 
 After the network has trained you can also produce an animation showing the evolution of the output by running `python3 srez_main.py --run demo`.
+
+# Performance
+
+The example image given in this page is the result of training the network for 3 hours on a GTX 1080 GPU, equivalent to 130,000 batches or about 10 epochs.
+On a standard laptop (Lenovo T440, 8 GB of RAM, Intel Core i5-4300U CPU @ 1.90GHz × 4 Haswell Mobile, Ubuntu 16.04) and Tensorflow running on the CPU only, in 9 hours, 2050 batches were computed
+On an Azure Standard NC6 VM (6 cores, 56 GB of RAM, SSD, One K80 GPU) using Tensorflow on CUDA, in 11 hours, 158200 batches were computed.
+
+So in average:
+- GTX1080 GPU: 43330 batches/hour
+- K80 GPU: 14380 batches/hour
+- I5-4300 CPU: 230 batches/hour
 
 # Using the model
 
